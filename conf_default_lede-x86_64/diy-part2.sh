@@ -19,7 +19,7 @@ sed -i '/CONFIG_KERNEL_BUILD_DOMAIN/d' .config &&
     echo 'CONFIG_KERNEL_BUILD_DOMAIN="wangkexiong.tk"' >>.config
 
 # 3rd party libraries
-SCRIPTS_DIR=$(realpath $0/../extra)
+SCRIPTS_DIR=$(realpath $(dirname $0)/../extra)
 
 chmod +x ${SCRIPTS_DIR}/*.sh
 for SCRIPT in ${SCRIPTS_DIR}/*.sh; do
