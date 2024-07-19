@@ -1,12 +1,17 @@
 #
 # https://github.com/P3TERX/Actions-OpenWrt
 
-name: Build LEDE x86_64 Base System
+name: Build LEDE x86_64
 
 on:
-  repository_dispatch:
-    types: [build_lede_base]
   workflow_dispatch:
+    inputs:
+      type:
+        required: true
+        default:  "default"
+      upload:
+        required: false
+        default:  "true"
 
 permissions:
   contents: write
@@ -16,11 +21,11 @@ env:
   OPENWRT_DIR: lede
   REPO_BRANCH: master
   DEVICE_ARCH: x86_64
-  FEEDS_CONF:  conf_base_lede-x86_64/feeds.conf.default
-  CONFIG_FILE: conf_base_lede-x86_64/.config
-  DIY_P1_SH:   conf_base_lede-x86_64/diy-part1.sh
-  DIY_P2_SH:   conf_base_lede-x86_64/diy-part2.sh
-  UPLOAD_BIN_DIR:    false
+  FEEDS_CONF:  conf_${{ inputs.type }}_lede-x86_64/feeds.conf.default
+  CONFIG_FILE: conf_${{ inputs.type }}_lede-x86_64/.config
+  DIY_P1_SH:   conf_${{ inputs.type }}_lede-x86_64/diy-part1.sh
+  DIY_P2_SH:   conf_${{ inputs.type }}_lede-x86_64/diy-part2.sh
+  UPLOAD_BIN_DIR:    ${{ inputs.upload }}
   UPLOAD_FIRMWARE:   false
   UPLOAD_RELEASE:    true
   TZ: Asia/Shanghai
@@ -120,11 +125,6 @@ jobs:
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
 
-    - name: 编译扩展 ipk
-      run: |
-        cd $OPENWRT_DIR
-        make package/compile
-
     - name: 检查磁盘空间
       if: (!cancelled())
       run: df -hT
@@ -161,25 +161,3 @@ jobs:
       with:
         name: ${{ env.OPENWRT_VAR }}_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
-
-    - name: 生成 release 标签
-      id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      run: |
-        echo "release_tag=${{ env.OPENWRT_VAR }}-${{ env.DEVICE_ARCH }}-${{ env.TAG_DATE }}" >> $GITHUB_OUTPUT
-        touch release.txt
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: 发布固件
-      uses: softprops/action-gh-release@master
-      if: steps.tag.outputs.status == 'success' && !cancelled()
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.tag.outputs.release_tag }}
-        body_path: release.txt
-        files: |
-          ${{ env.OPENWRT_DIR}}/config.tar
-          ${{ env.OPENWRT_DIR}}/bin/**/*.ipk
-          ${{ env.FIRMWARE }}/*
-
