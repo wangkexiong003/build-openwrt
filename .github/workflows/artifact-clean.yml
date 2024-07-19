@@ -1,5 +1,4 @@
-
-name: Clean Artifacts
+name: Clean All Artifacts
 
 on:
   workflow_dispatch:
@@ -16,13 +15,12 @@ jobs:
       uses: Mattraks/delete-workflow-runs@main
       with:
         retain_days: 0
-        keep_minimum_runs: 4
+        keep_minimum_runs: 0
 
     - name: 清理 releases
       uses: dev-drprasad/delete-older-releases@master
       with:
-        keep_latest: 4
+        keep_latest: 0
         delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
