@@ -121,7 +121,7 @@ jobs:
         echo -e "$(nproc) thread compile"
 
         PKGS=$(find package/custom -mindepth 1 -type d -exec basename {} \;)
-        for PKG in PKGS; do
+        for PKG in $PKGS; do
           make package/custom/$PKG/compile V=s -j$(nproc)
         done
         
