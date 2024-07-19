@@ -19,14 +19,9 @@ sed -i '/CONFIG_KERNEL_BUILD_DOMAIN/d' .config &&
     echo 'CONFIG_KERNEL_BUILD_DOMAIN="wangkexiong.tk"' >>.config
 
 # 3rd party libraries
-chmod +x $GITHUB_WORKSPACE/extra/*.sh
+SCRIPTS_DIR=$(realpath $0/../extra)
 
-$GITHUB_WORKSPACE/extra/theme-argon.sh
-$GITHUB_WORKSPACE/extra/samba.sh
-$GITHUB_WORKSPACE/extra/docker.sh
-$GITHUB_WORKSPACE/extra/ddns-go.sh
-$GITHUB_WORKSPACE/extra/qbittorrent.sh
-$GITHUB_WORKSPACE/extra/alist.sh
-$GITHUB_WORKSPACE/extra/passwall.sh
-$GITHUB_WORKSPACE/extra/clash.sh
-$GITHUB_WORKSPACE/extra/openappfilter.sh
+chmod +x ${SCRIPTS_DIR}/*.sh
+for SCRIPT in ${SCRIPTS_DIR}/*.sh; do
+    ${SCRIPT}
+done
