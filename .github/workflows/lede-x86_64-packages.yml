@@ -122,9 +122,9 @@ jobs:
 
         PKGS=$(find package/custom -mindepth 1 -type d -exec basename {} \;)
         for PKG in $PKGS; do
-          make package/custom/$PKG/compile V=s -j$(nproc)
+          make package/$PKG/compile V=s -j$(nproc)
         done
-        
+
         echo "status=success" >> $GITHUB_OUTPUT
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
