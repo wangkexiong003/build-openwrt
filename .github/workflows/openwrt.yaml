@@ -1,0 +1,140 @@
+name: openwrt
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Openwrt Version(v24.10.4)'
+        required: false
+        default: 'v24.10.4'
+      skipCache:
+        description: 'Skip Cache'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build(${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: 检查服务器配置
+        run: |
+          echo "警告⚠"
+          echo "分配的服务器性能有限，若选择的插件过多，务必注意CPU性能！"
+          echo "云编译建议取消勾选Node.js及其相关插件！"
+          echo "主机信息："
+          uname -a
+          echo -e "\n"
+          echo "--------------------------CPU信息--------------------------"
+          echo "CPU物理数量:$(cat /proc/cpuinfo| grep "physical id"| sort| uniq| wc -l)"
+          echo -e "CPU核心及版本信息：$(cat /proc/cpuinfo | grep name | cut -f2 -d: | uniq -c) \n"
+          echo "--------------------------内存信息--------------------------"
+          echo "已安装内存详细信息："
+          sudo lshw -short -C memory | grep GiB
+          echo "--------------------------硬盘信息--------------------------"
+          echo -e  "硬盘数量：$(ls /dev/sd* | grep -v [1-9] | wc -l) \n"
+          echo "硬盘详情："
+          df -Th
+
+      - name: Prepare dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget zstd
+
+          sudo mkdir -p /mnt/workdir
+          sudo chown $USER:$GROUPS /mnt/workdir
+          echo "WORKING_DIR=/mnt/workdir" >> ${GITHUB_ENV}
+          echo "TIMESTAMP=$(date +%s)"    >> ${GITHUB_ENV}
+
+      - name: Restore cached build
+        id: cache-restore
+        if: ${{ inputs.skipCache == 'false' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.WORKING_DIR }}/openwrt
+          key: openwrt${{ inputs.tag }}-${{ matrix.target }}-${{ env.TIMESTAMP }}
+          restore-keys: |
+            openwrt${{ inputs.tag }}-${{ matrix.target }}
+
+      - name: Check cache existence
+        id: cache-check
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          if [ -d openwrt ]; then
+            echo "cache-exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "cache-exists=false" >> $GITHUB_OUTPUT
+            git clone --branch ${{ inputs.tag }} --depth 1 https://github.com/openwrt/openwrt.git
+          fi
+
+      - name: Restore openwrt feeds
+        working-directory: ${{ env.WORKING_DIR }}/openwrt
+        run: |
+          # update feeds
+          chmod +x ${GITHUB_WORKSPACE}/scripts/diy_feeds.sh
+          ${GITHUB_WORKSPACE}/scripts/diy_feeds.sh
+
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+          if [ -f ${GITHUB_WORKSPACE}/config/${{ matrix.target }} ]; then
+            cp ${GITHUB_WORKSPACE}/config/${{ matrix.target }} .config
+          fi
+
+          chmod +x ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
+          ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
+
+          # custom building languages
+          if [[ "${CACHE_EXISTS}" == "false" ]]; then
+            chmod +x ${GITHUB_WORKSPACE}/scripts/update_languages.sh
+            ${GITHUB_WORKSPACE}/scripts/update_languages.sh
+          fi
+
+          make defconfig
+          make download -j8
+        env:
+          CACHE_EXISTS: ${{ steps.cache-check.outputs.cache-exists }}
+
+      - name: Build openwrt
+        working-directory: ${{ env.WORKING_DIR }}/openwrt
+        run: |
+          echo -e "$(nproc) thread compile"
+          make -j$(nproc) || make -j1 || make -j1 V=s
+
+      - name: Build env check
+        if: ${{ always() }}
+        working-directory: ${{ env.WORKING_DIR }}/openwrt
+        run: |
+          df -hT
+
+      - name: Build env artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-env
+          path: ${{ env.WORKING_DIR }}/openwrt/.config
+          include-hidden-files: true
+
+      - name: Update build cache
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+          path: ${{ env.WORKING_DIR }}/openwrt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt${{ inputs.tag }}-${{ matrix.target }}
+          path: |
+            ${{ env.WORKING_DIR }}/openwrt/bin
